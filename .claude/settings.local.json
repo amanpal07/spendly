@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/home/aman/expense-tracker/venv/bin/pip install *)",
+      "Bash(/home/aman/expense-tracker/venv/bin/python *)",
+      "Bash(mv expense-tracker/app.py expense-tracker/requirements.txt expense-tracker/.gitignore expense-tracker/database expense-tracker/static expense-tracker/templates .)",
+      "Bash(rm -rf expense-tracker __MACOSX)"
+    ]
+  }
+}
