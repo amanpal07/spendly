@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy — Spendly{% endblock %}
+
+{% block head %}
+<style>
+    .legal {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 5rem;
+    }
+    .legal-eyebrow {
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 0.75rem;
+    }
+    .legal-title {
+        font-family: var(--font-display);
+        font-size: 2.4rem;
+        color: var(--ink);
+        margin-bottom: 0.5rem;
+        line-height: 1.15;
+    }
+    .legal-updated {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+        margin-bottom: 2.5rem;
+    }
+    .legal-section {
+        margin-bottom: 2.25rem;
+    }
+    .legal-section h2 {
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        color: var(--ink);
+        margin-bottom: 0.75rem;
+    }
+    .legal-section p {
+        color: var(--ink-soft);
+        font-size: 0.95rem;
+        line-height: 1.75;
+        margin: 0;
+    }
+    .legal-back {
+        display: inline-block;
+        margin-top: 1rem;
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    .legal-back:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="legal">
+    <p class="legal-eyebrow">Legal</p>
+    <h1 class="legal-title">Privacy Policy</h1>
+    <p class="legal-updated">Last updated: July 2026</p>
+
+    <div class="legal-section">
+        <h2>Data We Collect</h2>
+        <p>
+            Spendly collects the personal expense information you choose to enter, such as
+            transaction amounts, categories, dates, and optional descriptions ("Expense Data").
+            We also store the basic account details you provide to register, such as your
+            email address and a securely hashed copy of your password. We do not require or
+            collect sensitive financial credentials such as full bank login details or complete
+            payment card numbers.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>How We Use Your Data</h2>
+        <p>
+            Your Expense Data is used solely to provide the Service — to display your spending,
+            generate summaries, and let you manage your records. We use your email address to
+            authenticate your account and communicate important service updates. We do not sell
+            your personal data, and we do not use your Expense Data for advertising.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Data Storage</h2>
+        <p>
+            Your data is stored on servers associated with the Service and protected using
+            reasonable technical and organizational measures. Expense Data is kept for as long
+            as your account is active; you may delete individual records at any time, and you can
+            request deletion of your account and associated data. While we work to protect your
+            information, no method of transmission or storage is completely secure.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Third Party Services</h2>
+        <p>
+            Spendly may use third-party providers for hosting, analytics, or infrastructure.
+            These providers are given access only to the information needed to perform their
+            function on our behalf and are expected to handle it in line with this policy. We do
+            not share your Expense Data with third parties for their own marketing purposes.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Contact Us</h2>
+        <p>
+            If you have questions about this Privacy Policy or how your data is handled, you can
+            reach us at privacy@spendly.app. We will respond to reasonable requests and work with
+            you to address any concerns about your personal information.
+        </p>
+    </div>
+
+    <a class="legal-back" href="{{ url_for('landing') }}">← Back to home</a>
+</section>
+
+{% endblock %}
