@@ -1,2 +1,0 @@
-# Jeb-Kharch
-# Jeb-Kharch
