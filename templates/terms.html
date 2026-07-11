@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Terms and Conditions — Spendly{% endblock %}
+
+{% block head %}
+<style>
+    .legal {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 5rem;
+    }
+    .legal-eyebrow {
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 0.75rem;
+    }
+    .legal-title {
+        font-family: var(--font-display);
+        font-size: 2.4rem;
+        color: var(--ink);
+        margin-bottom: 0.5rem;
+        line-height: 1.15;
+    }
+    .legal-updated {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+        margin-bottom: 2.5rem;
+    }
+    .legal-section {
+        margin-bottom: 2.25rem;
+    }
+    .legal-section h2 {
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        color: var(--ink);
+        margin-bottom: 0.75rem;
+    }
+    .legal-section p {
+        color: var(--ink-soft);
+        font-size: 0.95rem;
+        line-height: 1.75;
+        margin: 0;
+    }
+    .legal-back {
+        display: inline-block;
+        margin-top: 1rem;
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    .legal-back:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="legal">
+    <p class="legal-eyebrow">Legal</p>
+    <h1 class="legal-title">Terms and Conditions</h1>
+    <p class="legal-updated">Last updated: July 2026</p>
+
+    <div class="legal-section">
+        <h2>Acceptance of Terms</h2>
+        <p>
+            By accessing or using Spendly ("the Service"), you agree to be bound by these
+            Terms and Conditions. If you do not agree with any part of these terms, you
+            may not use the Service. Spendly is provided for personal, non-commercial
+            expense tracking and is intended for individual use.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Use of Service</h2>
+        <p>
+            You agree to use Spendly only for lawful purposes and in accordance with these
+            Terms. You are responsible for maintaining the confidentiality of your account
+            credentials and for all activity that occurs under your account. You may not use
+            the Service to store unlawful, infringing, or harmful content, or to interfere
+            with the operation of the Service or other users' access to it.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>User Data</h2>
+        <p>
+            Spendly allows you to record personal financial information such as expenses,
+            categories, and notes ("User Data"). You retain full ownership of your User Data.
+            You are responsible for the accuracy of the information you enter. We store your
+            data so that you can view and manage it within the Service, and we take reasonable
+            measures to protect it. You should not enter sensitive account credentials or
+            full payment card numbers into free-text fields.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Limitations of Liability</h2>
+        <p>
+            Spendly is provided "as is" without warranties of any kind, express or implied.
+            We do not guarantee that the Service will be uninterrupted, error-free, or
+            suitable for any particular purpose. To the fullest extent permitted by law,
+            Spendly and its operators shall not be liable for any indirect, incidental, or
+            consequential damages arising from your use of, or inability to use, the Service,
+            including any decisions made based on the information displayed.
+        </p>
+    </div>
+
+    <div class="legal-section">
+        <h2>Changes to Terms</h2>
+        <p>
+            We may revise these Terms and Conditions from time to time. When we make changes,
+            we will update the "Last updated" date above. Your continued use of the Service
+            after any changes take effect constitutes your acceptance of the revised terms.
+            We encourage you to review this page periodically.
+        </p>
+    </div>
+
+    <a class="legal-back" href="{{ url_for('landing') }}">← Back to home</a>
+</section>
+
+{% endblock %}
