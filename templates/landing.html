@@ -17,7 +17,7 @@
         </p>
         <div class="hero-actions">
             <a href="{{ url_for('register') }}" class="btn-primary">Create free account</a>
-            <a href="#features" class="btn-primary btn-dark">See how it works</a>
+            <a href="#features" id="howItWorksBtn" class="btn-primary btn-dark">See how it works</a>
         </div>
     </div>
     <div class="hero-visual">
@@ -96,5 +96,112 @@
         <a href="{{ url_for('register') }}" class="btn-primary">Create free account</a>
     </div>
 </section>
+
+<div id="videoModal" class="modal-overlay" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="How Spendly works">
+        <button type="button" class="modal-close" data-close aria-label="Close video">&times;</button>
+        <div class="modal-video">
+            <iframe id="videoFrame" title="How Spendly works" frameborder="0"
+                    allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-overlay[hidden] { display: none; }
+    .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    .modal-dialog {
+        position: relative;
+        z-index: 1;
+        width: min(90vw, 880px);
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    .modal-close {
+        position: absolute;
+        top: -14px;
+        right: -14px;
+        width: 38px;
+        height: 38px;
+        border: none;
+        border-radius: 50%;
+        background: #111;
+        color: #fff;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    .modal-video {
+        position: relative;
+        width: 100%;
+        padding-top: 56.25%; /* 16:9 aspect ratio */
+        border-radius: 8px;
+        overflow: hidden;
+        background: #000;
+    }
+    .modal-video iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<script>
+    (function () {
+        // Placeholder video — replace with your real YouTube embed URL.
+        var VIDEO_URL = 'https://www.youtube.com/embed/VIDEO_ID';
+
+        var modal = document.getElementById('videoModal');
+        var btn = document.getElementById('howItWorksBtn');
+        var frame = document.getElementById('videoFrame');
+
+        function openModal() {
+            frame.src = VIDEO_URL + '?autoplay=1';
+            modal.hidden = false;
+        }
+
+        function closeModal() {
+            modal.hidden = true;
+            // Clearing the src stops the video from playing in the background.
+            frame.src = '';
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            openModal();
+        });
+
+        Array.prototype.forEach.call(
+            modal.querySelectorAll('[data-close]'),
+            function (el) {
+                el.addEventListener('click', closeModal);
+            }
+        );
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !modal.hidden) {
+                closeModal();
+            }
+        });
+    })();
+</script>
 
 {% endblock %}
