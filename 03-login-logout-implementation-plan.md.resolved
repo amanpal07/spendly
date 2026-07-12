@@ -1,0 +1,350 @@
+# Implementation Plan: Step 3 — Login and Logout
+
+> **Spec:** [03-login-logout.md](file:///home/aman/expense-tracker/.claude/specs/03-login-logout.md)
+> **Scope:** Wire up `POST /login` + replace `/logout` placeholder + set `app.secret_key`
+> **Files to modify:** 2 &nbsp;|&nbsp; **Files to create:** 0 &nbsp;|&nbsp; **New dependencies:** 0
+
+---
+
+## Pre-Implementation Checklist
+
+Before writing any code, confirm the current state:
+
+- [x] Step 1 (Database Setup) is complete — `get_db()` returns an `sqlite3.Row`-factored connection
+- [x] Step 2 (Registration) is complete — users are inserted with `email.lower()` normalisation and werkzeug-hashed passwords
+- [x] `users` table has `id`, `name`, `email` (UNIQUE), `password_hash`, `created_at`
+- [x] Demo user seeded: `demo@spendly.com` / `demo123` (password is only 6 chars — seeded directly, never went through registration validation)
+- [x] `login.html` already has `<form method="POST" action="/login">` and an `{% if error %}` block
+- [x] `login.html` posts two fields: `email` and `password`
+- [x] `/login` route currently only accepts `GET` — `POST` returns 405
+- [x] `/logout` route is a placeholder stub returning a string
+- [x] `app.secret_key` is **not** set — Flask sessions will not work until it is
+- [x] `werkzeug` is pinned (`3.1.6`) — `check_password_hash` is available
+- [x] No existing test files (no regressions to guard against yet)
+
+---
+
+## Architecture Context
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as Flask (app.py)
+    participant DB as SQLite (users)
+    participant S as Flask Session
+
+    Note over B,S: LOGIN FLOW
+    B->>F: POST /login {email, password}
+    F->>F: Normalise email (.strip().lower())
+    F->>DB: SELECT id, name, password_hash WHERE email = ?
+    alt User not found
+        F-->>B: Re-render login.html with error
+    else User found
+        F->>F: check_password_hash(stored_hash, password)
+        alt Wrong password
+            F-->>B: Re-render login.html with error
+        else Correct password
+            F->>S: session["user_id"] = id, session["user_name"] = name
+            F-->>B: 302 Redirect → /
+        end
+    end
+
+    Note over B,S: LOGOUT FLOW
+    B->>F: GET /logout
+    F->>S: session.clear()
+    F-->>B: 302 Redirect → /login
+```
+
+---
+
+## Task Breakdown
+
+### Task 1: Set `app.secret_key`
+
+**File:** [app.py](file:///home/aman/expense-tracker/app.py) — after line 8 (`app = Flask(__name__)`)
+
+**What to add:**
+
+```python
+app.secret_key = "spendly-dev-key-change-in-production"
+```
+
+**Why it matters:**
+Flask's `session` object is a signed cookie. Without `secret_key`, any attempt to read or write `session` raises a `RuntimeError`. This is the **prerequisite** for both login and logout.
+
+**Design decisions:**
+- A hardcoded dev key is explicitly acceptable per the spec: *"a dev key is acceptable for this learning project"*
+- The key string should make it obvious it's a development placeholder (not a real secret)
+- Place it immediately after `app = Flask(__name__)` — this is the idiomatic location
+
+---
+
+### Task 2: Add new imports to `app.py`
+
+**File:** [app.py](file:///home/aman/expense-tracker/app.py) — Lines 1–4
+
+**Current imports:**
+```python
+import sqlite3
+
+from flask import Flask, render_template, request, redirect, url_for
+from werkzeug.security import generate_password_hash
+```
+
+**New imports needed:**
+
+| Import | From | Purpose |
+|--------|------|---------|
+| `session` | `flask` | Read/write the session cookie (`session["user_id"]`, `session.clear()`) |
+| `check_password_hash` | `werkzeug.security` | Verify submitted password against stored hash |
+
+**After change:**
+```python
+import sqlite3
+
+from flask import Flask, render_template, request, redirect, url_for, session
+from werkzeug.security import generate_password_hash, check_password_hash
+```
+
+> [!NOTE]
+> `generate_password_hash` stays — it's used by the `/register` route from Step 2. Both hash functions coexist in the same import line.
+
+---
+
+### Task 3: Extend the `/login` route to handle POST
+
+**File:** [app.py](file:///home/aman/expense-tracker/app.py) — Lines 84–86
+
+**Current state:**
+```python
+@app.route("/login")
+def login():
+    return render_template("login.html")
+```
+
+**What to change — step-by-step logic:**
+
+#### 3a. Route decorator
+
+```python
+@app.route("/login", methods=["GET", "POST"])
+```
+
+#### 3b. GET path (preserve existing behavior)
+
+```python
+if request.method == "GET":
+    return render_template("login.html")
+```
+
+#### 3c. Extract and normalise form fields
+
+```python
+email    = request.form.get("email", "").strip().lower()
+password = request.form.get("password", "")
+```
+
+> [!IMPORTANT]
+> **Email normalisation is critical.** The spec mandates that `Demo@Spendly.com` must match `demo@spendly.com`. Step 2 already stores emails as `.lower()`, so applying `.lower()` to the login input ensures case-insensitive matching. Do **not** strip or alter the password.
+
+#### 3d. Look up the user in the database
+
+```python
+db = get_db()
+user = db.execute(
+    "SELECT id, name, password_hash FROM users WHERE email = ?",
+    (email,),
+).fetchone()
+db.close()
+```
+
+**Key details:**
+- Parameterised query with `?` placeholder — **never** string-format SQL
+- `fetchone()` returns `None` if no row matches → feeds into the "not found" branch
+- Uses `sqlite3.Row` factory, so fields are accessible via `user["id"]`, `user["name"]`, `user["password_hash"]`
+- Close the DB connection immediately after the query — we don't need it anymore
+
+#### 3e. Validate credentials (single generic error)
+
+```python
+GENERIC_ERROR = "Invalid email or password."
+
+if user is None or not check_password_hash(user["password_hash"], password):
+    return render_template("login.html", error=GENERIC_ERROR, email=email)
+```
+
+> [!WARNING]
+> **Security pattern: single generic error message.** The spec explicitly says: *"do not distinguish 'no such user' from 'wrong password'."* Both `user is None` (email not found) and `check_password_hash` returning `False` (wrong password) must produce the **identical** error: `"Invalid email or password."` This prevents user enumeration attacks.
+
+**Why the single `if` works safely:**
+- Python's `or` short-circuits: if `user is None`, `check_password_hash` is never called (which would crash on `None["password_hash"]`)
+- This is cleaner than nested `if/else`
+
+#### 3f. Set the session and redirect
+
+```python
+session["user_id"] = user["id"]
+session["user_name"] = user["name"]
+return redirect(url_for("landing"))
+```
+
+**What goes in the session:**
+
+| Key | Value | Why |
+|-----|-------|-----|
+| `session["user_id"]` | `user["id"]` (integer) | Primary identifier for the logged-in user — future steps will use this to scope queries |
+| `session["user_name"]` | `user["name"]` (string) | Display name — spec explicitly says to store this; avoids a DB query just to show "Hello, X" |
+
+**Redirect target:** `/` (the landing page), via `url_for("landing")`. The spec says: *"redirect to the landing page (`/`) on success"*.
+
+> [!NOTE]
+> This does **not** auto-log-in the user after registration (that was Step 2's explicit constraint). Login is a separate, deliberate action.
+
+---
+
+### Task 4: Replace the `/logout` placeholder
+
+**File:** [app.py](file:///home/aman/expense-tracker/app.py) — Lines 93–95
+
+**Current state:**
+```python
+@app.route("/logout")
+def logout():
+    return "Logout — coming in Step 3"
+```
+
+**Replace with:**
+```python
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+```
+
+**Design decisions:**
+- `session.clear()` is preferred over `session.pop("user_id")` + `session.pop("user_name")` — it removes **all** session keys, which is more robust against future keys being added and accidentally left behind
+- Redirect target is `/login` per the spec
+- No `methods` change needed — logout remains GET-only (no form submission)
+- This route should be moved **out of the "Placeholder routes" comment block** since it's now a real implementation. Place it with the other real routes above the placeholder section.
+
+---
+
+### Task 5: Update `login.html` to preserve email on error
+
+**File:** [login.html](file:///home/aman/expense-tracker/templates/login.html) — Lines 23–25
+
+**Current state:**
+```html
+<input type="email" id="email" name="email"
+       class="form-input" placeholder="nitish@example.com"
+       required autofocus>
+```
+
+**After change:**
+```html
+<input type="email" id="email" name="email"
+       class="form-input" placeholder="nitish@example.com"
+       value="{{ email | default('') }}"
+       required autofocus>
+```
+
+**Design notes:**
+- Identical pattern to what Step 2 already did for `register.html` — consistency matters
+- `| default('')` prevents Jinja `UndefinedError` on initial GET (when no `email` variable is passed)
+- Only `email` is preserved — password is deliberately **never** echoed back (standard security practice)
+- No other structural changes to the template are needed — the `{% if error %}` block already exists and will display the error message
+
+---
+
+## Summary of All Changes
+
+### [app.py](file:///home/aman/expense-tracker/app.py)
+
+| Location | Change | Task |
+|----------|--------|------|
+| Line 3 (Flask imports) | Add `session` | Task 2 |
+| Line 4 (werkzeug imports) | Add `check_password_hash` | Task 2 |
+| After line 8 | Add `app.secret_key = "spendly-dev-key-change-in-production"` | Task 1 |
+| Lines 84–86 | Extend `/login`: add `methods=["GET", "POST"]`, full POST handler with lookup → verify → session → redirect | Task 3 |
+| Lines 93–95 | Replace `/logout` placeholder with `session.clear()` + redirect to `/login` | Task 4 |
+
+### [login.html](file:///home/aman/expense-tracker/templates/login.html)
+
+| Location | Change | Task |
+|----------|--------|------|
+| Lines 23–25 | Add `value="{{ email \| default('') }}"` to email input | Task 5 |
+
+---
+
+## Validation Scenario Matrix
+
+| Scenario | What happens | Session created? | Redirect? |
+|----------|-------------|------------------|-----------|
+| `GET /login` | Renders `login.html` (no error) | ❌ | ❌ |
+| Correct email + password | Session set, redirect to `/` | ✅ | → `/` |
+| Demo user (`demo@spendly.com` / `demo123`) | Session set, redirect to `/` | ✅ | → `/` |
+| Case-variant email (`Demo@Spendly.com` / `demo123`) | Normalised to `demo@spendly.com`, matches → session set | ✅ | → `/` |
+| Email exists, wrong password | Error: "Invalid email or password." | ❌ | ❌ |
+| Email not in DB | Error: "Invalid email or password." (same msg) | ❌ | ❌ |
+| Failed login — email preserved? | ✅ email shown in input | ❌ | ❌ |
+| `GET /logout` (while logged in) | Session cleared, redirect to `/login` | Cleared | → `/login` |
+| `GET /logout` (while not logged in) | Session cleared (no-op), redirect to `/login` | N/A | → `/login` |
+
+---
+
+## Edge Cases & Gotchas
+
+### 1. Demo user password is only 6 characters
+
+The seeded demo user has password `demo123` (6 chars), which would **fail** registration's 8-char minimum. But login has **no password-length validation** — it simply checks the hash. This is correct: login should accept whatever password matches the stored hash, regardless of length.
+
+### 2. `session.clear()` is safe even when not logged in
+
+If a user hits `/logout` without being logged in, `session.clear()` is a no-op on an empty dict. No guard clause needed.
+
+### 3. Email normalisation consistency
+
+Registration (Step 2) stores `email.strip().lower()`. Login must apply the **same** normalisation before the DB lookup. If these ever diverge, case-variant emails will break.
+
+### 4. `secret_key` must be set before any route accesses `session`
+
+Flask reads `secret_key` when the first response with session data is created. Setting it right after `app = Flask(__name__)` guarantees it's available before any request is processed.
+
+### 5. The navbar still shows "Sign in" / "Get started" even when logged in
+
+`base.html` currently hardcodes these links (lines 21–24). This step does **not** change the navbar — that's expected to be addressed in a future step. The session data (`session["user_id"]`, `session["user_name"]`) is being set now so future steps can conditionally render the navbar.
+
+---
+
+## Verification Checklist (maps to Definition of Done)
+
+| # | Criterion | How to verify |
+|---|-----------|---------------|
+| 1 | `GET /login` still renders `login.html` | Visit `/login` — form appears unchanged |
+| 2 | Valid credentials → session created + redirect to `/` | Login as `demo@spendly.com` / `demo123` → redirected to landing page |
+| 3 | Demo user can sign in | Same as above — use seeded demo credentials |
+| 4 | Wrong password → generic error, no session | Login with `demo@spendly.com` / `wrongpass` → error shown, no redirect |
+| 5 | Unknown email → same generic error | Login with `nobody@example.com` / `anything` → same error message |
+| 6 | Case-insensitive email works | Login with `Demo@Spendly.com` / `demo123` → succeeds |
+| 7 | Failed login preserves email in form | After any error, inspect email input → previously entered email is still there |
+| 8 | `GET /logout` clears session + redirects to `/login` | While logged in, visit `/logout` → redirected to `/login` |
+| 9 | After logout, session is empty | After logout, check that `session` has no `user_id` / `user_name` |
+| 10 | All DB access uses parameterised queries | Code review: `.execute()` uses `?` placeholders, no f-strings or `.format()` |
+| 11 | `pytest` still passes | Run `pytest` — no failures |
+
+---
+
+## Execution Order
+
+```mermaid
+graph TD
+    A["Task 1: Set app.secret_key"] --> C
+    B["Task 2: Add session + check_password_hash imports"] --> C
+    C["Task 3: Extend /login route<br/>(POST handler)"]
+    C --> D["Task 4: Replace /logout placeholder<br/>(session.clear + redirect)"]
+    D --> E["Task 5: Update login.html<br/>(bind email value)"]
+    E --> F["Verify against checklist"]
+```
+
+> [!TIP]
+> Tasks 1 and 2 are import/config changes at the top of `app.py` and can be done together in a single edit. Task 3 is the core logic (~15 lines). Task 4 is a 2-line replacement. Task 5 is a single line in the template. **Total estimated effort: ~20 lines of Python + 1 line of HTML.**

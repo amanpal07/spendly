@@ -1,11 +1,12 @@
 import sqlite3
 
-from flask import Flask, render_template, request, redirect, url_for
-from werkzeug.security import generate_password_hash
+from flask import Flask, render_template, request, redirect, url_for, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from database.db import get_db, init_db, seed_db
 
 app = Flask(__name__)
+app.secret_key = "spendly-dev-key-change-in-production"  # dev-only; use env var in prod
 
 
 # ------------------------------------------------------------------ #
@@ -81,18 +82,59 @@ def privacy():
     return render_template("privacy.html")
 
 
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    return render_template("login.html")
+    if request.method == "GET":
+        return render_template("login.html")
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+
+    db = get_db()
+    user = db.execute(
+        "SELECT id, name, password_hash FROM users WHERE email = ?", (email,)
+    ).fetchone()
+    db.close()
+
+    GENERIC_ERROR = "Invalid email or password."
+    if user is None or not check_password_hash(user["password_hash"], password):
+        return render_template("login.html", error=GENERIC_ERROR, email=email)
+
+    session["user_id"] = user["id"]
+    session["user_name"] = user["name"]
+    return redirect(url_for("landing"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/debug")
+def debug():
+    """Dev-only live view of the database. Not for production use."""
+    db = get_db()
+    users = [
+        dict(r)
+        for r in db.execute(
+            "SELECT id, name, email, created_at FROM users ORDER BY id"
+        ).fetchall()
+    ]
+    expenses = [
+        dict(r)
+        for r in db.execute(
+            "SELECT id, user_id, amount, category, date, description "
+            "FROM expenses ORDER BY id"
+        ).fetchall()
+    ]
+    db.close()
+    return render_template("debug.html", users=users, expenses=expenses)
 
 
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-@app.route("/logout")
-def logout():
-    return "Logout — coming in Step 3"
 
 
 @app.route("/profile")
