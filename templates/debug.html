@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Debug — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="debug-wrap">
+    <h1>Database — Dev View</h1>
+    <p>Live view of the SQLite database. Refresh the page after adding or
+       registering data to see it update.</p>
+
+    <h2>Users ({{ users|length }})</h2>
+    <table class="debug-table">
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Email</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.name }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Expenses ({{ expenses|length }})</h2>
+    <table class="debug-table">
+        <thead>
+            <tr>
+                <th>ID</th><th>User</th><th>Amount (₹)</th>
+                <th>Category</th><th>Date</th><th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td>{{ e.id }}</td>
+                <td>{{ e.user_id }}</td>
+                <td>{{ "%.2f"|format(e.amount) }}</td>
+                <td>{{ e.category }}</td>
+                <td>{{ e.date }}</td>
+                <td>{{ e.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% endblock %}
