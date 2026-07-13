@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -142,36 +143,90 @@ def profile():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    user = {
-        "name": "Aanya Sharma",
-        "initials": "AS",
-        "email": "demo@spendly.com",
-        "member_since": "July 2026",
-    }
-    stats = {
-        "total_spent": 3981.45,
-        "transaction_count": 8,
-        "top_category": "Bills",
-    }
-    transactions = [
-        {"date": "2026-07-11", "description": "Coffee", "category": "Food", "amount": 120.00},
-        {"date": "2026-07-10", "description": "Miscellaneous", "category": "Other", "amount": 150.00},
-        {"date": "2026-07-09", "description": "Groceries", "category": "Shopping", "amount": 890.20},
-        {"date": "2026-07-07", "description": "Movie tickets", "category": "Entertainment", "amount": 600.00},
-        {"date": "2026-07-05", "description": "Pharmacy", "category": "Health", "amount": 250.00},
-        {"date": "2026-07-03", "description": "Electricity bill", "category": "Bills", "amount": 1450.75},
-        {"date": "2026-07-02", "description": "Metro card recharge", "category": "Transport", "amount": 200.00},
-        {"date": "2026-07-01", "description": "Lunch with friends", "category": "Food", "amount": 320.50},
-    ]
-    categories = [
-        {"name": "Bills", "total": 1450.75, "percent": 100},
-        {"name": "Shopping", "total": 890.20, "percent": 61},
-        {"name": "Entertainment", "total": 600.00, "percent": 41},
-        {"name": "Food", "total": 440.50, "percent": 30},
-        {"name": "Health", "total": 250.00, "percent": 17},
-        {"name": "Transport", "total": 200.00, "percent": 14},
-        {"name": "Other", "total": 150.00, "percent": 10},
-    ]
+    user_id = session["user_id"]
+    db = get_db()
+    try:
+        # SECTION: user-info (orchestrator)
+        user_row = db.execute(
+            "SELECT id, name, email, created_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if user_row is None:
+            session.clear()
+            return redirect(url_for("login"))
+        name = user_row["name"]
+        created = datetime.strptime(user_row["created_at"], "%Y-%m-%d %H:%M:%S")
+        user = {
+            "name": name,
+            "email": user_row["email"],
+            "initials": "".join(p[0].upper() for p in name.split()[:2]) or name[:2].upper(),
+            "member_since": created.strftime("%B %Y"),
+        }
+
+        # === SECTION START: transaction-history (subagent 1) ===
+        rows = db.execute(
+            "SELECT date, description, category, amount "
+            "FROM expenses WHERE user_id = ? ORDER BY date DESC, id DESC",
+            (user_id,),
+        ).fetchall()
+        transactions = [
+            {
+                "date": r["date"],
+                "description": r["description"],
+                "category": r["category"],
+                "amount": r["amount"],
+            }
+            for r in rows
+        ]
+        # === SECTION END: transaction-history ===
+
+        # === SECTION START: summary-stats (subagent 2) ===
+        totals_row = db.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total_spent, "
+            "COUNT(*) AS transaction_count FROM expenses WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        total_spent = float(totals_row["total_spent"])
+        transaction_count = int(totals_row["transaction_count"])
+
+        cat_rows = db.execute(
+            "SELECT category, SUM(amount) AS total FROM expenses "
+            "WHERE user_id = ? GROUP BY category",
+            (user_id,),
+        ).fetchall()
+        top_category = ""
+        if cat_rows:
+            top_category = max(cat_rows, key=lambda r: r["total"])["category"]
+
+        stats = {
+            "total_spent": total_spent,
+            "transaction_count": transaction_count,
+            "top_category": top_category,
+        }
+        # === SECTION END: summary-stats ===
+
+        # === SECTION START: category-breakdown (subagent 3) ===
+        cat_totals = db.execute(
+            "SELECT category, SUM(amount) AS total FROM expenses "
+            "WHERE user_id = ? GROUP BY category",
+            (user_id,),
+        ).fetchall()
+        categories = []
+        if cat_totals:
+            max_total = max(r["total"] for r in cat_totals)
+            if max_total > 0:
+                categories = [
+                    {
+                        "name": r["category"],
+                        "total": float(r["total"]),
+                        "percent": round(r["total"] / max_total * 100),
+                    }
+                    for r in sorted(cat_totals, key=lambda r: r["total"], reverse=True)
+                ]
+        # === SECTION END: category-breakdown ===
+    finally:
+        db.close()
+
     return render_template(
         "profile.html",
         user=user,
