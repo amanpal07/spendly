@@ -20,7 +20,7 @@ def test_profile_renders_for_logged_in():
     client.post("/login", data={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
     resp = client.get("/profile")
     assert resp.status_code == 200
-    assert b"Aanya Sharma" in resp.data         # user info card
+    assert b"Demo User" in resp.data            # user info card (real seeded user)
     assert b"demo@spendly.com" in resp.data      # user info card
     assert b"Recent transactions" in resp.data   # table
     assert b"Spending by category" in resp.data  # breakdown
