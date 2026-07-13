@@ -28,7 +28,7 @@ def test_login_valid_demo():
         "/login", data={"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
     )
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/"
+    assert resp.headers["Location"] == "/profile"
     assert "Set-Cookie" in resp.headers  # session established
 
 
@@ -60,7 +60,7 @@ def test_login_case_insensitive_email():
         "/login", data={"email": "Demo@Spendly.com", "password": DEMO_PASSWORD}
     )
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/"
+    assert resp.headers["Location"] == "/profile"
 
 
 def test_login_error_preserves_email():
@@ -78,4 +78,4 @@ def test_logout_clears_session():
     client.post("/login", data={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
     resp = client.get("/logout")
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/login"
+    assert resp.headers["Location"] == "/"
