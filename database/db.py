@@ -6,12 +6,14 @@ Step 1 — Database Setup. Implements:
   seed_db()   — inserts demo user + sample expenses, only if empty
 """
 
+import os
 import sqlite3
 
 from werkzeug.security import generate_password_hash
 
-# SQLite file in the project root (ignored by .gitignore).
-DATABASE = "expense_tracker.db"
+# SQLite file. Defaults to the project-root dev DB, but can be overridden with
+# the SPENDLLY_DB env var (used by tests to point at an isolated temp database).
+DATABASE = os.environ.get("SPENDLLY_DB", "expense_tracker.db")
 
 
 def get_db():

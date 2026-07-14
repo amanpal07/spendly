@@ -68,7 +68,10 @@
     <!-- 3 + 4. Two-column: transactions (left) + category breakdown (right) -->
     <div class="profile-columns">
       <div class="profile-transactions">
-        <h2 class="profile-section-title">Recent transactions</h2>
+        <div class="profile-section-header">
+          <h2 class="profile-section-title">Recent transactions</h2>
+          <a href="{{ url_for('add_expense') }}" class="btn-primary btn-sm">+ Add expense</a>
+        </div>
         {% if transactions %}
         <table class="profile-table">
           <thead>

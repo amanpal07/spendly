@@ -1,3 +1,5 @@
+import math
+import os
 import re
 import sqlite3
 from datetime import datetime, timedelta
@@ -12,8 +14,15 @@ MONTH_NAMES = (
     "July", "August", "September", "October", "November", "December",
 )
 
+CATEGORIES = (
+    "Food", "Transport", "Bills", "Health", "Entertainment", "Shopping", "Other",
+)
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 app = Flask(__name__)
-app.secret_key = "spendly-dev-key-change-in-production"  # dev-only; use env var in prod
+# Dev-only default; set SPENDLLY_SECRET_KEY (a random value) in any real deployment.
+app.secret_key = os.environ.get("SPENDLLY_SECRET_KEY", "spendly-dev-key-change-in-production")
 
 
 # ------------------------------------------------------------------ #
@@ -87,6 +96,13 @@ def terms():
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
+
+
+@app.route("/analytics")
+def analytics():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    return render_template("analytics.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -294,9 +310,72 @@ def profile():
     )
 
 
-@app.route("/expenses/add")
+@app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
-    return "Add expense — coming in Step 7"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        today = datetime.now().strftime("%Y-%m-%d")
+        return render_template(
+            "add_expense.html",
+            categories=CATEGORIES,
+            date=today,
+            amount="",
+            category="",
+            description="",
+        )
+
+    # --- POST: extract and trim form fields ---
+    raw_amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    date = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()[:200]
+
+    def fail(msg):
+        return render_template(
+            "add_expense.html",
+            error=msg,
+            categories=CATEGORIES,
+            amount=raw_amount,
+            category=category,
+            date=date,
+            description=description,
+        )
+
+    # --- Validate amount ---
+    try:
+        amount = float(raw_amount)
+    except (ValueError, TypeError):
+        return fail("Please enter a valid amount.")
+    if not math.isfinite(amount) or amount <= 0:
+        return fail("Amount must be a positive number.")
+
+    # --- Validate category ---
+    if category not in CATEGORIES:
+        return fail("Please select a valid category.")
+
+    # --- Validate date (format + real calendar date) ---
+    if not DATE_RE.match(date):
+        return fail("Please enter a valid date (YYYY-MM-DD).")
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return fail("Please enter a valid date.")
+
+    # --- Insert, scoped to the logged-in user ---
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO expenses (user_id, amount, category, date, description) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (session["user_id"], round(amount, 2), category, date, description or None),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/edit")

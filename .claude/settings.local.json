@@ -11,7 +11,18 @@
       "Bash(git commit *)",
       "Bash(git branch *)",
       "Bash(git config *)",
-      "Bash(git ls-remote *)"
+      "Bash(git ls-remote *)",
+      "Read(//home/aman/**)",
+      "Read(//home/aman/.claude/**)",
+      "Bash(bash -lc 'which node npx 2>&1')",
+      "Read(//usr/local/bin/**)",
+      "Bash(find / -name node -type f)",
+      "Bash(command -v sudo)",
+      "Bash(sudo -n true)",
+      "Bash(command -v apt-get apt)",
+      "Read(//usr/lib/**)",
+      "mcp__plugin_figma_figma__get_metadata",
+      "mcp__plugin_figma_figma__whoami"
     ]
   }
 }
