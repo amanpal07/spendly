@@ -1,10 +1,16 @@
+import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database.db import get_db, init_db, seed_db
+
+MONTH_NAMES = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
 
 app = Flask(__name__)
 app.secret_key = "spendly-dev-key-change-in-production"  # dev-only; use env var in prod
@@ -144,6 +150,53 @@ def profile():
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+
+    # Months offered in the dropdown: the current month plus the previous 11.
+    # An empty value means "All time".
+    now = datetime.now()
+    months = []
+    y, m = now.year, now.month
+    for _ in range(12):
+        months.append({"value": f"{y}-{m:02d}", "label": f"{MONTH_NAMES[m - 1]} {y}"})
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+
+    # Parse the optional filter. A chosen month takes precedence and is expanded
+    # to that month's first/last day; otherwise the explicit from/to bounds are
+    # used. All values are validated as YYYY-MM-DD so the lexicographic date
+    # comparison below stays correct; invalid/empty values are ignored.
+    DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+    start = request.args.get("start", "").strip()
+    end = request.args.get("end", "").strip()
+    selected_month = request.args.get("month", "").strip()
+    if MONTH_RE.match(selected_month):
+        my, mm = int(selected_month[:4]), int(selected_month[5:7])
+        if 1 <= mm <= 12:
+            start = f"{my}-{mm:02d}-01"
+            # Last day of the month via datetime arithmetic (no string formatting,
+            # so an out-of-range month can never produce an invalid date string).
+            nxt = datetime(my + 1, 1, 1) if mm == 12 else datetime(my, mm + 1, 1)
+            end = (nxt - timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            selected_month = ""
+    else:
+        selected_month = ""
+
+    start = start if DATE_RE.match(start) else ""
+    end = end if DATE_RE.match(end) else ""
+
+    where = "user_id = ?"
+    params = [user_id]
+    if start:
+        where += " AND date >= ?"
+        params.append(start)
+    if end:
+        where += " AND date <= ?"
+        params.append(end)
+
     db = get_db()
     try:
         # SECTION: user-info (orchestrator)
@@ -165,9 +218,9 @@ def profile():
 
         # === SECTION START: transaction-history (subagent 1) ===
         rows = db.execute(
-            "SELECT date, description, category, amount "
-            "FROM expenses WHERE user_id = ? ORDER BY date DESC, id DESC",
-            (user_id,),
+            f"SELECT date, description, category, amount "
+            f"FROM expenses WHERE {where} ORDER BY date DESC, id DESC",
+            params,
         ).fetchall()
         transactions = [
             {
@@ -182,17 +235,17 @@ def profile():
 
         # === SECTION START: summary-stats (subagent 2) ===
         totals_row = db.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total_spent, "
-            "COUNT(*) AS transaction_count FROM expenses WHERE user_id = ?",
-            (user_id,),
+            f"SELECT COALESCE(SUM(amount), 0) AS total_spent, "
+            f"COUNT(*) AS transaction_count FROM expenses WHERE {where}",
+            params,
         ).fetchone()
         total_spent = float(totals_row["total_spent"])
         transaction_count = int(totals_row["transaction_count"])
 
         cat_rows = db.execute(
-            "SELECT category, SUM(amount) AS total FROM expenses "
-            "WHERE user_id = ? GROUP BY category",
-            (user_id,),
+            f"SELECT category, SUM(amount) AS total FROM expenses "
+            f"WHERE {where} GROUP BY category",
+            params,
         ).fetchall()
         top_category = ""
         if cat_rows:
@@ -207,9 +260,9 @@ def profile():
 
         # === SECTION START: category-breakdown (subagent 3) ===
         cat_totals = db.execute(
-            "SELECT category, SUM(amount) AS total FROM expenses "
-            "WHERE user_id = ? GROUP BY category",
-            (user_id,),
+            f"SELECT category, SUM(amount) AS total FROM expenses "
+            f"WHERE {where} GROUP BY category",
+            params,
         ).fetchall()
         categories = []
         if cat_totals:
@@ -220,6 +273,7 @@ def profile():
                         "name": r["category"],
                         "total": float(r["total"]),
                         "percent": round(r["total"] / max_total * 100),
+                        "share": round(r["total"] / total_spent * 100) if total_spent else 0,
                     }
                     for r in sorted(cat_totals, key=lambda r: r["total"], reverse=True)
                 ]
@@ -233,6 +287,10 @@ def profile():
         stats=stats,
         transactions=transactions,
         categories=categories,
+        start=start,
+        end=end,
+        months=months,
+        selected_month=selected_month,
     )
 
 

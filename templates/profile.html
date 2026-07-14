@@ -30,43 +30,83 @@
       </div>
     </div>
 
-    <!-- 3. Transaction history table -->
-    <div class="profile-transactions">
-      <h2 class="profile-section-title">Recent transactions</h2>
-      <table class="profile-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Category</th>
-            <th class="profile-amount">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in transactions %}
-          <tr>
-            <td class="profile-date">{{ t.date }}</td>
-            <td>{{ t.description }}</td>
-            <td><span class="category-badge category-badge--{{ t.category|lower }}">{{ t.category }}</span></td>
-            <td class="profile-amount">₹{{ "{:,.2f}".format(t.amount) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 4. Category breakdown -->
-    <div class="profile-categories">
-      <h2 class="profile-section-title">Spending by category</h2>
-      {% for c in categories %}
-      <div class="profile-cat-row">
-        <span class="profile-cat-name">{{ c.name }}</span>
-        <div class="profile-cat-track">
-          <div class="profile-cat-bar profile-cat-bar--{{ c.name|lower }}" style="--w: {{ c.percent }}%"></div>
+    <!-- 2.5 Date range filter -->
+    <form class="profile-filter" method="get" action="{{ url_for('profile') }}">
+      <label class="profile-filter-field">
+        <span class="profile-filter-label">From</span>
+        <div class="profile-date-picker">
+          <input type="text" class="profile-filter-input profile-filter-date-display" readonly placeholder="Select date">
+          <button type="button" class="profile-date-trigger" aria-label="Pick start date">&#128197;</button>
+          <input type="hidden" name="start" value="{{ start or '' }}">
+          <div class="profile-calendar" hidden></div>
         </div>
-        <span class="profile-cat-total">₹{{ "{:,.2f}".format(c.total) }}</span>
+      </label>
+      <label class="profile-filter-field">
+        <span class="profile-filter-label">To</span>
+        <div class="profile-date-picker">
+          <input type="text" class="profile-filter-input profile-filter-date-display" readonly placeholder="Select date">
+          <button type="button" class="profile-date-trigger" aria-label="Pick end date">&#128197;</button>
+          <input type="hidden" name="end" value="{{ end or '' }}">
+          <div class="profile-calendar" hidden></div>
+        </div>
+      </label>
+      <label class="profile-filter-field profile-filter-month">
+        <span class="profile-filter-label">Month</span>
+        <select class="profile-filter-select" name="month">
+          <option value="" {% if not selected_month %}selected{% endif %}>All time</option>
+          {% for opt in months %}
+          <option value="{{ opt.value }}" {% if selected_month == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="profile-filter-apply">Apply</button>
+      {% if start or end %}
+      <a href="{{ url_for('profile') }}" class="profile-filter-clear">Clear</a>
+      {% endif %}
+    </form>
+
+    <!-- 3 + 4. Two-column: transactions (left) + category breakdown (right) -->
+    <div class="profile-columns">
+      <div class="profile-transactions">
+        <h2 class="profile-section-title">Recent transactions</h2>
+        {% if transactions %}
+        <table class="profile-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th class="profile-amount">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in transactions %}
+            <tr>
+              <td class="profile-date">{{ t.date }}</td>
+              <td>{{ t.description }}</td>
+              <td><span class="category-badge category-badge--{{ t.category|lower }}">{{ t.category }}</span></td>
+              <td class="profile-amount">₹{{ "{:,.2f}".format(t.amount) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="profile-empty">No transactions found{% if start or end %} in the selected date range{% endif %}.</p>
+        {% endif %}
       </div>
-      {% endfor %}
+
+      <aside class="profile-categories">
+        <h2 class="profile-section-title">Spending by category</h2>
+        {% for c in categories %}
+        <div class="profile-cat-row">
+          <span class="profile-cat-name">{{ c.name }}</span>
+          <div class="profile-cat-track">
+            <div class="profile-cat-bar profile-cat-bar--{{ c.name|lower }}" style="--w: {{ c.percent }}%"></div>
+          </div>
+          <span class="profile-cat-total">₹{{ "{:,.2f}".format(c.total) }}<span class="profile-cat-pct">{{ c.share }}%</span></span>
+        </div>
+        {% endfor %}
+      </aside>
     </div>
 
   </div>
