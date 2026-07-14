@@ -770,6 +770,19 @@ a { color: inherit; text-decoration: none; }
 .profile-amount { text-align: right; font-variant-numeric: tabular-nums; }
 .profile-date { color: var(--ink-faint); font-size: 0.85rem; }
 
+/* Edit link in transaction row */
+.profile-actions { text-align: right; white-space: nowrap; }
+.profile-edit-link {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--accent);
+    transition: color 0.2s;
+}
+.profile-edit-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+}
+
 /* 2.5 Date range filter */
 .profile-filter {
     display: flex;

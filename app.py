@@ -10,24 +10,43 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from database.db import get_db, init_db, seed_db
 
 MONTH_NAMES = (
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 )
 
 CATEGORIES = (
-    "Food", "Transport", "Bills", "Health", "Entertainment", "Shopping", "Other",
+    "Food",
+    "Transport",
+    "Bills",
+    "Health",
+    "Entertainment",
+    "Shopping",
+    "Other",
 )
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 app = Flask(__name__)
 # Dev-only default; set SPENDLLY_SECRET_KEY (a random value) in any real deployment.
-app.secret_key = os.environ.get("SPENDLLY_SECRET_KEY", "spendly-dev-key-change-in-production")
+app.secret_key = os.environ.get(
+    "SPENDLLY_SECRET_KEY", "spendly-dev-key-change-in-production"
+)
 
 
 # ------------------------------------------------------------------ #
 # Routes                                                              #
 # ------------------------------------------------------------------ #
+
 
 @app.route("/")
 def landing():
@@ -228,18 +247,20 @@ def profile():
         user = {
             "name": name,
             "email": user_row["email"],
-            "initials": "".join(p[0].upper() for p in name.split()[:2]) or name[:2].upper(),
+            "initials": "".join(p[0].upper() for p in name.split()[:2])
+            or name[:2].upper(),
             "member_since": created.strftime("%B %Y"),
         }
 
         # === SECTION START: transaction-history (subagent 1) ===
         rows = db.execute(
-            f"SELECT date, description, category, amount "
+            f"SELECT id, date, description, category, amount "
             f"FROM expenses WHERE {where} ORDER BY date DESC, id DESC",
             params,
         ).fetchall()
         transactions = [
             {
+                "id": r["id"],
                 "date": r["date"],
                 "description": r["description"],
                 "category": r["category"],
@@ -289,7 +310,9 @@ def profile():
                         "name": r["category"],
                         "total": float(r["total"]),
                         "percent": round(r["total"] / max_total * 100),
-                        "share": round(r["total"] / total_spent * 100) if total_spent else 0,
+                        "share": (
+                            round(r["total"] / total_spent * 100) if total_spent else 0
+                        ),
                     }
                     for r in sorted(cat_totals, key=lambda r: r["total"], reverse=True)
                 ]
@@ -378,9 +401,92 @@ def add_expense():
     return redirect(url_for("profile"))
 
 
-@app.route("/expenses/<int:id>/edit")
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
 def edit_expense(id):
-    return "Edit expense — coming in Step 8"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    if request.method == "GET":
+        # --- Load the existing expense, scoped to the logged-in user ---
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT id, amount, category, date, description "
+                "FROM expenses WHERE id = ? AND user_id = ?",
+                (id, user_id),
+            ).fetchone()
+        finally:
+            db.close()
+
+        if row is None:
+            return redirect(url_for("profile"))
+
+        # dict(row), not the raw sqlite3.Row: the template uses expense.id,
+        # and this codebase standardises on dict rows (see profile route +
+        # test_07 item access), so Jinja2 key lookup always resolves.
+        return render_template(
+            "edit_expense.html",
+            expense=dict(row),
+            categories=CATEGORIES,
+            amount="{:.2f}".format(row["amount"]),
+            category=row["category"],
+            date=row["date"],
+            description=row["description"] or "",
+        )
+
+    # --- POST: extract and trim form fields ---
+    raw_amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    date = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()[:200]
+
+    def fail(msg):
+        return render_template(
+            "edit_expense.html",
+            error=msg,
+            expense={"id": id},
+            categories=CATEGORIES,
+            amount=raw_amount,
+            category=category,
+            date=date,
+            description=description,
+        )
+
+    # --- Validate amount ---
+    try:
+        amount = float(raw_amount)
+    except (ValueError, TypeError):
+        return fail("Please enter a valid amount.")
+    if not math.isfinite(amount) or amount <= 0:
+        return fail("Amount must be a positive number.")
+
+    # --- Validate category ---
+    if category not in CATEGORIES:
+        return fail("Please select a valid category.")
+
+    # --- Validate date (format + real calendar date) ---
+    if not DATE_RE.match(date):
+        return fail("Please enter a valid date (YYYY-MM-DD).")
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return fail("Please enter a valid date.")
+
+    # --- UPDATE, scoped to the logged-in user ---
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE expenses SET amount = ?, category = ?, date = ?, description = ? "
+            "WHERE id = ? AND user_id = ?",
+            (round(amount, 2), category, date, description or None, id, user_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/delete")
