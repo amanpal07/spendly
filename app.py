@@ -333,6 +333,18 @@ def profile():
     )
 
 
+def _profile_filter_args():
+    """Collect the active date-filter args (start/end/month) from the query
+    string so a redirect returns the user to the same filtered view they were
+    looking at. Only present, non-empty values are included."""
+    args = {}
+    for key in ("start", "end", "month"):
+        val = request.args.get(key, "").strip()
+        if val:
+            args[key] = val
+    return args
+
+
 @app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
     if not session.get("user_id"):
@@ -398,7 +410,7 @@ def add_expense():
     finally:
         db.close()
 
-    return redirect(url_for("profile"))
+    return redirect(url_for("profile", **_profile_filter_args()))
 
 
 @app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
@@ -486,12 +498,27 @@ def edit_expense(id):
     finally:
         db.close()
 
-    return redirect(url_for("profile"))
+    return redirect(url_for("profile", **_profile_filter_args()))
 
 
-@app.route("/expenses/<int:id>/delete")
+@app.route("/expenses/<int:id>/delete", methods=["POST"])
 def delete_expense(id):
-    return "Delete expense — coming in Step 9"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    db = get_db()
+    try:
+        db.execute(
+            "DELETE FROM expenses WHERE id = ? AND user_id = ?",
+            (id, user_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return redirect(url_for("profile", **_profile_filter_args()))
 
 
 with app.app_context():
