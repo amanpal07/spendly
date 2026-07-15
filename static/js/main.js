@@ -120,5 +120,50 @@
       });
     }
     document.querySelectorAll(".profile-date-picker").forEach(initPicker);
+
+    // --- Delete confirmation modal ---
+    const deleteModal = document.getElementById("deleteModal");
+    if (deleteModal) {
+      const deleteForm = document.getElementById("deleteModalForm");
+      const descEl = document.getElementById("deleteModalDesc");
+      const amountEl = document.getElementById("deleteModalAmount");
+
+      function openDeleteModal(id, desc, amount) {
+        descEl.textContent = desc;
+        amountEl.textContent = amount;
+        // Carry the current filter query string so the redirect lands on the
+        // same filtered view the user was looking at.
+        const qs = window.location.search;
+        deleteForm.action = "/expenses/" + id + "/delete" + qs;
+        deleteModal.hidden = false;
+      }
+
+      function closeDeleteModal() {
+        deleteModal.hidden = true;
+      }
+
+      // Delegate clicks: open on a row's Delete trigger, close on backdrop/Cancel.
+      document.addEventListener("click", function (e) {
+        const trigger = e.target.closest(".profile-delete-trigger");
+        if (trigger) {
+          openDeleteModal(
+            trigger.dataset.id,
+            trigger.dataset.desc,
+            trigger.dataset.amount
+          );
+          return;
+        }
+        if (e.target.closest("[data-close]") && deleteModal.contains(e.target)) {
+          closeDeleteModal();
+        }
+      });
+
+      // Close on Escape without deleting.
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !deleteModal.hidden) {
+          closeDeleteModal();
+        }
+      });
+    }
   });
 })();
