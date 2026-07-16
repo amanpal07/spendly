@@ -527,4 +527,8 @@ with app.app_context():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    # Railway (and most PaaS) inject PORT; default to the dev port locally.
+    # Bind to 0.0.0.0 so the container is reachable; debug stays on only for
+    # local `python app.py` runs (gunicorn, used in prod, ignores this block).
+    port = int(os.environ.get("PORT", 5001))
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1", host="0.0.0.0", port=port)
